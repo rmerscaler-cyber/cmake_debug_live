@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${nonce}';">
+<style>
+  body { margin: 0; color: var(--vscode-foreground); background: var(--vscode-sideBar-background); font: 12px var(--vscode-font-family); }
+  header { position: sticky; top: 0; z-index: 2; display: flex; align-items: center; gap: 8px; padding: 5px 7px; background: var(--vscode-sideBar-background); border-bottom: 1px solid var(--vscode-panel-border); }
+  .dim { color: var(--vscode-descriptionForeground); }
+  .spacer { flex: 1; }
+  button { color: inherit; background: none; border: 0; cursor: pointer; font: inherit; }
+  button:hover, button:focus-visible { background: var(--vscode-list-hoverBackground); outline: none; }
+  #rows { overflow-x: auto; }
+  .row { display: flex; flex-wrap: wrap; align-items: center; min-height: 24px; white-space: nowrap; padding-right: 6px; }
+  .row:hover { background: var(--vscode-list-hoverBackground); }
+  .row.selected { background: var(--vscode-list-activeSelectionBackground); color: var(--vscode-list-activeSelectionForeground); }
+  .twist { flex: 0 0 17px; width: 17px; padding: 0; text-align: center; }
+  .name { flex: 0 0 auto; padding: 2px 3px 2px 0; }
+  .name.root { font-weight: 600; }
+  .value { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; font-family: var(--vscode-editor-font-family, monospace); font-variant-numeric: tabular-nums; padding: 2px 3px; }
+  .value.changed { background: var(--vscode-editor-findMatchHighlightBackground); border-radius: 2px; }
+  .value.changed::before { content: '●'; color: var(--vscode-charts-blue); margin-right: 4px; }
+  .value.link { color: var(--vscode-textLink-foreground); cursor: pointer; }
+  .value.editable { cursor: text; }
+  .value input { box-sizing: border-box; width: 100%; min-width: 80px; font: inherit; color: var(--vscode-input-foreground); background: var(--vscode-input-background); border: 1px solid var(--vscode-focusBorder); outline: none; }
+  #writeStatus { padding: 4px 7px; white-space: normal; }
+  #writeStatus:empty { display: none; }
+  #writeStatus.error { color: var(--vscode-errorForeground); }
+  .row.more .name { color: var(--vscode-textLink-foreground); cursor: pointer; }
+  .actions { display: none; position: fixed; z-index: 3; min-width: 140px; padding: 3px; background: var(--vscode-menu-background); color: var(--vscode-menu-foreground); border: 1px solid var(--vscode-menu-border, var(--vscode-panel-border)); box-shadow: 0 4px 12px #0005; }
+  .actions.open { display: block; }
+  .actions button { display: block; width: 100%; padding: 5px 9px; text-align: left; }
+  .empty { padding: 12px; color: var(--vscode-descriptionForeground); }
+  .display-mode { max-width: 72px; font: inherit; color: var(--vscode-dropdown-foreground); background: var(--vscode-dropdown-background); border: 1px solid var(--vscode-dropdown-border, var(--vscode-panel-border)); border-radius: 3px; margin: 2px 0 2px 6px; }
+  .matrix-panel { flex: 0 0 100%; box-sizing: border-box; padding: 5px 4px 9px 19px; overflow-x: auto; }
+  .matrix-grid { border-collapse: separate; border-spacing: 3px; font: 12px var(--vscode-editor-font-family, monospace); font-variant-numeric: tabular-nums; }
+  .matrix-grid th { font-size: 10px; font-weight: normal; color: var(--vscode-descriptionForeground); text-align: center; padding: 0 5px 3px; }
+  .matrix-grid td { min-width: 64px; padding: 6px 9px; text-align: right; border: 1px solid var(--vscode-panel-border); border-radius: 3px; background: var(--vscode-editor-background); }
+  .matrix-grid td.changed { border-color: var(--vscode-charts-blue); background: var(--vscode-editor-findMatchHighlightBackground); }
+  .matrix-message { white-space: normal; color: var(--vscode-descriptionForeground); padding: 3px; }
+  .matrix-message.error { color: var(--vscode-errorForeground); }
+  .matrix-hint { font-size: 10px; color: var(--vscode-descriptionForeground); padding: 3px 5px 0; }
+</style>
+</head>
+<body>
+<header>
+  <span id="hz" class="dim">等待采样</span>
+  <span id="count" class="dim"></span>
+  <span class="spacer"></span>
+  <button id="add" title="添加监控表达式" aria-label="添加监控表达式">＋</button>
+</header>
+<div id="writeStatus" role="status" aria-live="polite"></div>
+<div id="rows"></div>
+<div id="actions" class="actions"></div>
+<script nonce="${nonce}">
+  const vscode = acquireVsCodeApi();
+  const rowsEl = document.getElementById('rows');
+  const actions = document.getElementById('actions');
+  const hzEl = document.getElementById('hz');
+  const countEl = document.getElementById('count');
+  const elements = new Map();
+  const pendingExpansion = new Map();
+  const pendingDisplayMode = new Map();
+  let latest = [];
+  let painting = false;
+  let selected = '';
+  let pendingReveal = '';
+  let sessionId = '';
+  let nextRequestId = 0;
+  let editor;
+  const writeStatus = document.getElementById('writeStatus');
+
+  function status(text, error = false) {
+    writeStatus.textContent = text;
+    writeStatus.classList.toggle('error', error);
+  }
+  function finishEditing() {
+    if (!editor) { return; }
+    const entry = editor.entry;
+    editor = undefined;
+    entry.value.textContent = entry.row.value;
+  }
+  function startEditing(entry) {
+    if (!entry?.row.editable || !sessionId || editor?.pending) { return; }
+    finishEditing();
+    selected = entry.row.path;
+    closeMenu();
+    const input = document.createElement('input');
+    input.type = 'text';
+    // GDB may show characters next to integers; only seed the numeric value.
+    input.value = entry.row.value.replace(/\s+'.*$/, '');
+    input.setAttribute('aria-label', '修改 ' + entry.row.label + ' 的值');
+    entry.value.replaceChildren(input);
+    editor = { entry, input, sessionId, pending: false, requestId: 0 };
+    status('本次调试临时修改 · Enter 写入，Esc 取消');
+    input.addEventListener('keydown', (event) => {
+      event.stopPropagation();
+      if (event.key === 'Escape' && !editor?.pending) { finishEditing(); status(''); }
+      if (event.key !== 'Enter' || !editor || editor.pending) { return; }
+      event.preventDefault();
+      editor.pending = true;
+      editor.requestId = ++nextRequestId;
+      input.disabled = true;
+      status('正在写入…');
+      vscode.postMessage({ type: 'setValue', path: entry.row.path, value: input.value,
+        sessionId: editor.sessionId, requestId: editor.requestId });
+    });
+    input.addEventListener('blur', () => {
+      if (editor?.input === input && !editor.pending) { finishEditing(); status(''); }
+    });
+    input.focus();
+    input.select();
+  }
+
+  function send(action, path) { vscode.postMessage({ type: 'action', action, path }); }
+  function closeMenu() { actions.classList.remove('open'); actions.replaceChildren(); }
+  function showMenu(row, x, y) {
+    closeMenu();
+    const items = row.path.endsWith('\u001f__more') ? [['more', '加载更多数组元素']]
+      : row.root
+        ? [['all', row.monitorAll ? '关闭全部字段监控' : '监控全部字段'], ['plot', '加入波形'], ['serialPlot', '加入串口波形'], ['copy', '复制值'], ['edit', '编辑表达式'], ['up', '上移'], ['down', '下移'], ['remove', '移除']]
+        : [['plot', '加入波形'], ['serialPlot', '加入串口波形'], ['copy', '复制值']];
+    if (row.functionTarget) { items.unshift(['goto', '跳转到 ' + row.functionTarget + '()']); }
+    if (row.matrixShape) {
+      items.unshift(['mode:auto', '显示：自动'], ['mode:tree', '显示：默认树形'], ['mode:matrix', '显示：矩阵']);
+      if (row.matrixShape.kind === 'array') { items.unshift(['matrixShape', '设置矩阵行列数…']); }
+    }
+    if (row.editable) { items.unshift(['value', '修改值（本次调试）']); }
+    for (const [action, title] of items) {
+      if (action === 'plot' && !row.plottable) { continue; }
+      const button = document.createElement('button');
+      button.textContent = title;
+      button.addEventListener('click', () => {
+        closeMenu();
+        if (action === 'value') { startEditing(elements.get(row.path)); }
+        else if (action.startsWith('mode:')) {
+          pendingDisplayMode.set(row.path, action.slice(5));
+          vscode.postMessage({ type: 'setDisplayMode', path: row.path, mode: action.slice(5) });
+        }
+        else { send(action, action === 'more' ? row.path.slice(0, -7) : row.path); }
+      });
+      actions.appendChild(button);
+    }
+    actions.classList.add('open');
+    actions.style.left = Math.max(0, Math.min(x, innerWidth - actions.offsetWidth - 4)) + 'px';
+    actions.style.top = Math.max(0, Math.min(y, innerHeight - actions.offsetHeight - 4)) + 'px';
+  }
+
+  function createRow(row) {
+    const element = document.createElement('div');
+    element.className = 'row';
+    const twist = document.createElement('button');
+    twist.className = 'twist';
+    const name = document.createElement('span');
+    name.className = 'name';
+    const value = document.createElement('span');
+    value.className = 'value';
+    element.append(twist, name, value);
+    const entry = { element, twist, name, value, row };
+    element.addEventListener('click', () => { selected = entry.row.path; element.classList.add('selected'); closeMenu(); });
+    element.addEventListener('contextmenu', (event) => { event.preventDefault(); selected = entry.row.path; showMenu(entry.row, event.clientX, event.clientY); });
+    twist.addEventListener('click', (event) => {
+      event.stopPropagation();
+      if (!entry.row.expandable) { return; }
+      entry.row.expanded = !entry.row.expanded;
+      pendingExpansion.set(entry.row.path, entry.row.expanded);
+      twist.textContent = entry.row.expanded ? '⌄' : '›';
+      twist.setAttribute('aria-expanded', String(entry.row.expanded));
+      vscode.postMessage({ type: 'setExpanded', path: entry.row.path, expanded: entry.row.expanded });
+    });
+    name.addEventListener('click', (event) => {
+      if (entry.row.path.endsWith('\u001f__more')) {
+        event.stopPropagation();
+        send('more', entry.row.path.slice(0, -7));
+      } else if (entry.row.expandable) {
+        event.stopPropagation();
+        twist.click();
+      }
+    });
+    value.addEventListener('click', (event) => {
+      if (entry.row.functionTarget) { event.stopPropagation(); send('goto', entry.row.path); }
+    });
+    value.addEventListener('dblclick', (event) => {
+      event.stopPropagation();
+      if (event.target.tagName !== 'INPUT') { startEditing(entry); }
+    });
+    return entry;
+  }
+
+  function paintMatrix(entry, row) {
+    if (row.matrixShape && !entry.mode) {
+      entry.mode = document.createElement('select');
+      entry.mode.className = 'display-mode';
+      entry.mode.setAttribute('aria-label', row.label + ' 的显示方式');
+      entry.mode.title = '显示方式：自动识别、默认树形或矩阵网格';
+      for (const [value, label] of [['auto', '自动'], ['tree', '默认'], ['matrix', '矩阵']]) {
+        const option = document.createElement('option');
+        option.value = value;
+        option.textContent = label;
+        entry.mode.appendChild(option);
+      }
+      entry.mode.addEventListener('click', (event) => event.stopPropagation());
+      entry.mode.addEventListener('change', () => {
+        pendingDisplayMode.set(entry.row.path, entry.mode.value);
+        vscode.postMessage({ type: 'setDisplayMode', path: entry.row.path, mode: entry.mode.value });
+      });
+      entry.element.appendChild(entry.mode);
+    }
+    if (entry.mode) {
+      entry.mode.hidden = !row.matrixShape;
+      if (pendingDisplayMode.get(row.path) === row.displayMode) { pendingDisplayMode.delete(row.path); }
+      const mode = pendingDisplayMode.get(row.path) || row.displayMode || 'auto';
+      if (entry.mode.value !== mode) { entry.mode.value = mode; }
+    }
+    if (!row.matrix || !row.expanded) {
+      if (entry.matrixPanel) { entry.matrixPanel.hidden = true; }
+      return;
+    }
+    const matrix = row.matrix;
+    const shape = matrix.rows + 'x' + matrix.columns;
+    if (!entry.matrixPanel) {
+      entry.matrixPanel = document.createElement('div');
+      entry.matrixPanel.className = 'matrix-panel';
+      entry.element.appendChild(entry.matrixPanel);
+    }
+    entry.matrixPanel.hidden = false;
+    if (entry.matrixShape !== shape) {
+      entry.matrixShape = shape;
+      entry.cells = [];
+      entry.matrixPanel.replaceChildren();
+      const table = document.createElement('table');
+      table.className = 'matrix-grid';
+      table.setAttribute('aria-label', row.label + '，' + matrix.rows + ' 行 ' + matrix.columns + ' 列');
+      const head = document.createElement('tr');
+      head.appendChild(document.createElement('th'));
+      for (let column = 0; column < matrix.columns; column++) {
+        const th = document.createElement('th');
+        th.textContent = column;
+        th.setAttribute('scope', 'col');
+        head.appendChild(th);
+      }
+      table.appendChild(head);
+      for (let rowIndex = 0; rowIndex < matrix.rows; rowIndex++) {
+        const tr = document.createElement('tr');
+        const th = document.createElement('th');
+        th.textContent = rowIndex;
+        th.setAttribute('scope', 'row');
+        tr.appendChild(th);
+        for (let column = 0; column < matrix.columns; column++) {
+          const cell = document.createElement('td');
+          cell.title = row.label + '[' + rowIndex + ', ' + column + ']';
+          tr.appendChild(cell);
+          entry.cells.push(cell);
+        }
+        table.appendChild(tr);
+      }
+      entry.matrixPanel.appendChild(table);
+      entry.matrixMessage = document.createElement('div');
+      entry.matrixMessage.className = 'matrix-message';
+      entry.matrixPanel.appendChild(entry.matrixMessage);
+      const hint = document.createElement('div');
+      hint.className = 'matrix-hint';
+      hint.textContent = '行 × 列 · 索引从 0 开始';
+      entry.matrixPanel.appendChild(hint);
+    }
+    for (let index = 0; index < entry.cells.length; index++) {
+      const cell = entry.cells[index];
+      const value = matrix.values[index] === undefined ? '—' : matrix.values[index];
+      const numeric = Number(value);
+      const display = /[.e]/i.test(value) && Number.isFinite(numeric) ? String(Number(numeric.toPrecision(6))) : value;
+      if (cell.textContent !== display) { cell.textContent = display; }
+      const rowIndex = Math.floor(index / matrix.columns);
+      const column = index % matrix.columns;
+      cell.title = row.label + '[' + rowIndex + ', ' + column + '] = ' + value;
+      cell.classList.toggle('changed', Boolean(matrix.changed[index]));
+    }
+    const sampled = matrix.timestampMs ? '最近采样 ' + new Date(matrix.timestampMs).toLocaleTimeString()
+      + '.' + String(matrix.timestampMs % 1000).padStart(3, '0') : '';
+    entry.matrixMessage.textContent = matrix.error || (matrix.values.length
+      ? sampled + (sampled ? ' · ' : '') + (matrix.changed.some(Boolean) ? '数值已变化' : '数值未变化')
+      : '等待矩阵采样…');
+    entry.matrixMessage.classList.toggle('error', Boolean(matrix.error));
+  }
+
+  function paint() {
+    painting = false;
+    const emptyHint = rowsEl.querySelector('.empty');
+    if (emptyHint && latest.length) { emptyHint.remove(); }
+    const seen = new Set();
+    let nextElement = rowsEl.firstChild;
+    for (const row of latest) {
+      seen.add(row.path);
+      let entry = elements.get(row.path);
+      if (!entry) { entry = createRow(row); elements.set(row.path, entry); }
+      if (!row.expandable) { pendingExpansion.delete(row.path); }
+      if (pendingExpansion.has(row.path)) {
+        const desired = pendingExpansion.get(row.path);
+        if (row.expanded === desired) { pendingExpansion.delete(row.path); }
+        else { row.expanded = desired; }
+      }
+      entry.row = row;
+      entry.element.style.paddingLeft = (row.depth * 15 + 4) + 'px';
+      entry.element.classList.toggle('selected', selected === row.path);
+      entry.element.classList.toggle('more', row.hasMore && !row.root && row.path.endsWith('__more'));
+      entry.element.title = row.tooltip || '';
+      entry.twist.textContent = row.expandable ? row.expanded ? '⌄' : '›' : '';
+      entry.twist.title = row.expandable ? row.expanded ? '收起' : '展开' : '';
+      entry.twist.setAttribute('aria-label', entry.twist.title);
+      entry.twist.setAttribute('aria-expanded', String(Boolean(row.expanded)));
+      entry.twist.tabIndex = row.expandable ? 0 : -1;
+      const label = row.label + (row.monitorAll ? ' [全部字段]' : '') + (row.value ? ': ' : '');
+      if (entry.name.textContent !== label) { entry.name.textContent = label; }
+      entry.name.classList.toggle('root', row.root);
+      if (editor?.entry !== entry && entry.value.textContent !== row.value) { entry.value.textContent = row.value; }
+      entry.value.classList.toggle('changed', Boolean(row.changed));
+      entry.value.classList.toggle('link', Boolean(row.functionTarget));
+      entry.value.classList.toggle('editable', Boolean(row.editable));
+      entry.value.title = row.editable ? '双击或选中后按 F2 修改值（仅本次调试）' : '';
+      if (editor?.entry === entry && !row.editable) { finishEditing(); status('变量当前不可编辑', true); }
+      paintMatrix(entry, row);
+      // Reparenting an unchanged row between mousedown and mouseup cancels its click.
+      if (entry.element !== nextElement) { rowsEl.insertBefore(entry.element, nextElement); }
+      nextElement = entry.element.nextSibling;
+    }
+    for (const [path, entry] of elements) {
+      if (!seen.has(path)) {
+        if (editor?.entry === entry) { finishEditing(); status('变量已移除，编辑已关闭'); }
+        entry.element.remove(); elements.delete(path); pendingExpansion.delete(path); pendingDisplayMode.delete(path);
+      }
+    }
+    if (!latest.length) { rowsEl.innerHTML = '<div class="empty">点击右上角 ＋ 添加监控表达式，或使用标题栏添加 static 变量。</div>'; }
+    countEl.textContent = latest.length + ' 行';
+    if (pendingReveal) {
+      const target = elements.get(pendingReveal);
+      if (target) {
+        target.element.scrollIntoView({ block: 'nearest' });
+        target.element.classList.add('selected');
+        pendingReveal = '';
+      }
+    }
+  }
+
+  window.addEventListener('message', (event) => {
+    const message = event.data;
+    if (!message) { return; }
+    if (message.type === 'writeResult') {
+      if (!editor || editor.requestId !== message.requestId || editor.sessionId !== message.sessionId) { return; }
+      if (!message.success) {
+        editor.pending = false;
+        editor.input.disabled = false;
+        editor.input.focus();
+        status(message.error || '写入失败', true);
+      } else {
+        finishEditing();
+        status(message.overwritten ? '已写入，但回读时值已被程序更新：' + message.value
+          : '已写入本次调试：' + message.value);
+      }
+      return;
+    }
+    if (message.type === 'reveal') {
+      selected = message.path;
+      pendingReveal = selected;
+      if (!painting) { painting = true; requestAnimationFrame(paint); }
+      return;
+    }
+    if (message.type !== 'sample') { return; }
+    if (sessionId !== message.sessionId) {
+      finishEditing();
+      status('');
+      sessionId = message.sessionId || '';
+      pendingDisplayMode.clear();
+    }
+    latest = message.rows || [];
+    hzEl.textContent = '目标 ' + (message.targetHz || '—') + ' Hz · 实际 '
+      + (message.actualHz ? message.actualHz.toFixed(1) + ' Hz' : '等待采样');
+    if (!painting) { painting = true; requestAnimationFrame(paint); }
+  });
+  document.getElementById('add').addEventListener('click', () => send('add', ''));
+  document.addEventListener('click', (event) => { if (!actions.contains(event.target)) { closeMenu(); } });
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') { closeMenu(); }
+    if (event.key === 'F2' && elements.has(selected)) { event.preventDefault(); startEditing(elements.get(selected)); }
+  });
+  vscode.postMessage({ type: 'ready' });
+</script>
+</body>
+</html>

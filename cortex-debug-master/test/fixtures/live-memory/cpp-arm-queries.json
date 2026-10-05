@@ -1,0 +1,24 @@
+{
+    "c": {
+        "whatis /r 'Eigen::internal::plain_array<double, 16, 0, 16>'": "type = struct Eigen::internal::plain_array<double, 16, 0, 16>\n",
+        "ptype /o 'Eigen::internal::plain_array<double, 16, 0, 16>'": "/* offset      |    size */  type = struct Eigen::internal::plain_array<double, 16, 0, 16> [with T = double] {\n/*      0      |     128 */    T array[16];\n\n                               /* total size (bytes):  128 */\n                             }\n",
+        "whatis /r 'arm_kinematics::input_t<4>::JointVector'": "type = class Eigen::Matrix<double, 4, 1, 0, 4, 1>\n",
+        "ptype /o 'arm_kinematics::input_t<4>::JointVector'": "type = class Eigen::Matrix<double, 4, 1, 0, 4, 1> [with _Scalar = double] : public Eigen::PlainObjectBase<Eigen::Matrix<_Scalar, 4, 1, 0, 4, 1> > {\n\n                               /* total size (bytes):   32 */\n                             }\n",
+        "whatis /r 'Eigen::Matrix<double, 4, 4, 0, 4, 4>'": "type = class Eigen::Matrix<double, 4, 4, 0, 4, 4>\n",
+        "ptype /o 'Eigen::Matrix<double, 4, 4, 0, 4, 4>'": "/* offset      |    size */  type = class Eigen::Matrix<double, 4, 4, 0, 4, 4> [with _Scalar = double] : public Eigen::PlainObjectBase<Eigen::Matrix<_Scalar, 4, 4, 0, 4, 4> > {\n\n                               /* total size (bytes):  128 */\n                             }\n",
+        "whatis /r M4": "type = Eigen::Matrix4d\n",
+        "whatis /r 'Eigen::Matrix4d'": "type = class Eigen::Matrix<double, 4, 4, 0, 4, 4>\n",
+        "whatis /r 'Eigen::Matrix<double, 4, 1, 0, 4, 1>'": "type = class Eigen::Matrix<double, 4, 1, 0, 4, 1>\n"
+    },
+    "c++": {
+        "whatis /r 'Eigen::internal::plain_array<double, 16, 0, 16>'": "type = Eigen::internal::plain_array<double, 16, 0, 16>\n",
+        "ptype /o 'Eigen::internal::plain_array<double, 16, 0, 16>'": "/* offset      |    size */  type = struct Eigen::internal::plain_array<double, 16, 0, 16> [with T = double] {\n/*      0      |     128 */    T array[16];\n\n                               /* total size (bytes):  128 */\n                             }\n",
+        "whatis /r 'arm_kinematics::input_t<4>::JointVector'": "type = Eigen::Matrix<double, 4, 1, 0, 4, 1>\n",
+        "ptype /o 'arm_kinematics::input_t<4>::JointVector'": "type = class Eigen::Matrix<double, 4, 1, 0, 4, 1> [with _Scalar = double] : public Eigen::PlainObjectBase<Eigen::Matrix<_Scalar, 4, 1, 0, 4, 1> > {\n\n                               /* total size (bytes):   32 */\n                             }\n",
+        "whatis /r 'Eigen::Matrix<double, 4, 4, 0, 4, 4>'": "type = Eigen::Matrix<double, 4, 4, 0, 4, 4>\n",
+        "ptype /o 'Eigen::Matrix<double, 4, 4, 0, 4, 4>'": "/* offset      |    size */  type = class Eigen::Matrix<double, 4, 4, 0, 4, 4> [with _Scalar = double] : public Eigen::PlainObjectBase<Eigen::Matrix<_Scalar, 4, 4, 0, 4, 4> > {\n\n                               /* total size (bytes):  128 */\n                             }\n",
+        "whatis /r M4": "type = Eigen::Matrix4d\n",
+        "whatis /r 'Eigen::Matrix4d'": "type = Eigen::Matrix<double, 4, 4, 0, 4, 4>\n",
+        "whatis /r 'Eigen::Matrix<double, 4, 1, 0, 4, 1>'": "type = Eigen::Matrix<double, 4, 1, 0, 4, 1>\n"
+    }
+}

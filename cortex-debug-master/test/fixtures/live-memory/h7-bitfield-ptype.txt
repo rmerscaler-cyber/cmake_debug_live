@@ -1,0 +1,35 @@
+﻿arm-none-eabi-gdb.exe : warning: could not convert 'power_estimate_t' from the host encoding (CP1252) to UTF-32.
+所在位置 行:1 字符: 242
++ ... ptype.txt"; & $gdb --batch -nx -ex "set pagination off" -ex "ptype /o ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (warning: could ...252) to UTF-32.:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+This normally should not happen, please file a bug report.
+type = struct {
+/*      0      |       2 */    int16_t motor_lim_cur;
+/* XXX  2-byte hole      */
+/*      4      |       4 */    float motor_scale_power;
+/*      8      |       4 */    float cal_now_power;
+/*     12      |       2 */    int16_t motor_init_cur;
+/*     14: 0   |       1 */    uint8_t lim_flag : 1;
+/* XXX  7-bit hole       */
+/* XXX  1-byte hole      */
+/*     16      |       2 */    uint16_t over_count;
+/* XXX  2-byte padding   */
+
+                               /* total size (bytes):   20 */
+                             }
+type = struct {
+/*      0      |      16 */    motor_handle_t wheel_motor[4];
+/*     16      |      16 */    fp32 motor_output[4];
+/*     32      |      16 */    fp32 speed_rps[4];
+/*     48      |      16 */    fp32 cal_power[4];
+/*     64      |      16 */    fp32 *power_k[4];
+/*     80      |       1 */    uint8_t super_capacitor;
+/* XXX  3-byte hole      */
+/*     84      |      24 */    chassis_power_status_t status;
+
+                               /* total size (bytes):  108 */
+                             }
+No symbol "detect_task_t" in current context.

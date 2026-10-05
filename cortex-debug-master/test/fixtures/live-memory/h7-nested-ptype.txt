@@ -1,0 +1,148 @@
+﻿arm-none-eabi-gdb.exe : warning: could not convert 'cmd_t' from the host encoding (CP1252) to UTF-32.
+所在位置 行:1 字符: 240
++ ... ptype.txt"; & $gdb --batch -nx -ex "set pagination off" -ex "ptype /o ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (warning: could ...252) to UTF-32.:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+This normally should not happen, please file a bug report.
+type = struct {
+/*      0      |       1 */    uint8_t gimbal_mode;
+/*      1      |       1 */    uint8_t shoot;
+/*      2      |       1 */    uint8_t shift;
+/*      3      |       1 */    uint8_t src_vision;
+/*      4      |       1 */    uint8_t vision_auto;
+/*      5      |       1 */    uint8_t control_lost;
+/* XXX  2-byte hole      */
+/*      8      |       4 */    float vx;
+/*     12      |       4 */    float vy;
+/*     16      |       4 */    float wz;
+/*     20      |       4 */    fp32 yaw_delta;
+/*     24      |       4 */    fp32 pitch_delta;
+/*     28      |       1 */    uint8_t pitch_stick_active;
+/* XXX  3-byte hole      */
+/*     32      |       4 */    fp32 vision_yaw_err;
+/*     36      |       4 */    fp32 vision_pitch_err;
+/*     40      |       4 */    fp32 vision_distance;
+/*     44      |       1 */    uint8_t vision_update;
+/* XXX  3-byte padding   */
+
+                               /* total size (bytes):   48 */
+                             }
+type = struct {
+/*      0      |       1 */    pid_mode_e mode;
+/* XXX  3-byte hole      */
+/*      4      |       4 */    fp32 Kp;
+/*      8      |       4 */    fp32 Ki;
+/*     12      |       4 */    fp32 Kd;
+/*     16      |       4 */    fp32 max_out;
+/*     20      |       4 */    fp32 max_iout;
+/*     24      |       4 */    fp32 d_filter;
+/*     28      |       4 */    fp32 integral_separation;
+/*     32      |       1 */    uint8_t integral_separation_enabled;
+/* XXX  3-byte hole      */
+/*     36      |       4 */    fp32 set;
+/*     40      |       4 */    fp32 fdb;
+/*     44      |       4 */    fp32 last_fdb;
+/*     48      |       4 */    fp32 out;
+/*     52      |       4 */    fp32 Pout;
+/*     56      |       4 */    fp32 Iout;
+/*     60      |       4 */    fp32 Dout;
+/*     64      |       8 */    fp32 error[2];
+/*     72      |       8 */    fp32 ierror[2];
+/*     80      |      44 */    pid_feedforward_t feedforward;
+/*    124      |       4 */    uint32_t block_count;
+/*    128      |       1 */    pid_error_e error_type;
+/* XXX  3-byte padding   */
+
+                               /* total size (bytes):  132 */
+                             }
+type = struct {
+/*      0      |       4 */    fp32 angle;
+/*      4      |       4 */    fp32 total_angle;
+/*      8      |       4 */    fp32 speed_angle;
+/*     12      |       4 */    fp32 speed_rotor;
+/*     16      |       4 */    fp32 speed_ms;
+/*     20      |       2 */    int16_t current;
+/* XXX  2-byte hole      */
+/*     24      |       4 */    fp32 torque;
+/*     28      |       1 */    int8_t temperature;
+/*     29      |       1 */    uint8_t valid;
+/* XXX  2-byte hole      */
+/*     32      |       4 */    uint32_t timestamp_ms;
+/*     36      |       4 */    uint32_t sequence;
+
+                               /* total size (bytes):   40 */
+                             }
+type = struct {
+/*      0      |       1 */    motor_mode_e mode;
+/* XXX  3-byte hole      */
+/*      4      |     132 */    pid_type_def angle_pid;
+/*    136      |     132 */    pid_type_def speed_pid;
+/*    268      |       4 */    fp32 ref;
+/*    272      |       4 */    fp32 output;
+
+                               /* total size (bytes):  276 */
+                             }
+type = struct {
+/*      0      |       1 */    uint8_t supercap_enabled;
+/*      1      |       1 */    uint8_t supercap_error;
+/*      2      |       1 */    uint8_t shift_key;
+/* XXX  1-byte hole      */
+/*      4      |       4 */    fp32 supercap_energy;
+/*      8      |       4 */    fp32 supercap_power_max;
+/*     12      |       4 */    fp32 referee_power;
+/*     16      |       4 */    fp32 referee_power_buffer;
+/*     20      |       2 */    uint16_t referee_power_limit;
+/* XXX  2-byte padding   */
+
+                               /* total size (bytes):   24 */
+                             }
+type = struct {
+/*      0      |       4 */    fp32 input;
+/*      4      |       4 */    fp32 out;
+/*      8      |       4 */    fp32 num[1];
+/*     12      |       4 */    fp32 frame_period;
+
+                               /* total size (bytes):   16 */
+                             }
+type = struct motor_driver_ops {
+/*      0      |       4 */    const char *name;
+/*      4      |       4 */    motor_base_t *(*register_instance)(const motor_reg_t *);
+/*      8      |       4 */    uint8_t (*store_protocol_feedback)(motor_base_t *, const uint8_t *);
+/*     12      |       4 */    uint8_t (*read_unfiltered_feedback)(motor_base_t *, motor_feedback_t *);
+/*     16      |       4 */    void (*pack_commands)(const motor_handle_t *, uint8_t);
+/*     20      |       4 */    void (*enable)(motor_base_t *);
+/*     24      |       4 */    void (*disable)(motor_base_t *);
+
+                               /* total size (bytes):   28 */
+                             }
+type = struct {
+/*      0      |       1 */    motor_id_e id;
+/*      1      |       1 */    motor_type_e type;
+/* XXX  2-byte hole      */
+/*      4      |       4 */    const motor_driver_ops_t *driver;
+/*      8      |       1 */    motor_bus_e can_bus;
+/* XXX  1-byte hole      */
+/*     10      |       2 */    uint16_t can_id;
+/*     12      |       2 */    uint16_t cmd_id;
+/*     14      |       1 */    uint8_t cmd_slot;
+/*     15      |       1 */    motor_mode_e mode;
+/*     16      |       4 */    fp32 output_max;
+/*     20      |       2 */    int16_t direction;
+/*     22      |       2 */    uint16_t offset_ecd;
+/*     24      |       4 */    fp32 current_scale;
+/*     28      |       4 */    fp32 reduction;
+/*     32      |       4 */    fp32 wheel_radius;
+/*     36      |      32 */    pid_config_t angle_pid;
+/*     68      |      32 */    pid_config_t speed_pid;
+/*    100      |       1 */    motor_speed_feedback_e speed_feedback;
+/* XXX  3-byte padding   */
+
+                               /* total size (bytes):  104 */
+                             }
+type = enum {MOTOR_FIRE_L, MOTOR_FIRE_R, MOTOR_YAW, MOTOR_PITCH, MOTOR_CHASSIS_3508_1, MOTOR_CHASSIS_3508_2, MOTOR_CHASSIS_3508_3, MOTOR_CHASSIS_3508_4, MOTOR_CHASSIS_6020_1, MOTOR_CHASSIS_6020_2, MOTOR_CHASSIS_6020_3, MOTOR_CHASSIS_6020_4, MOTOR_STIR_DJI, MOTOR_STIR_LK, MOTOR_COUNT}
+type = enum {MOTOR_TYPE_NONE, MOTOR_TYPE_DJI, MOTOR_TYPE_DM, MOTOR_TYPE_LK}
+$1 = 48
+$2 = 132
+$3 = 40

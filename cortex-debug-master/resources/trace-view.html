@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${nonce}';">
+<style>
+  body { margin: 0; color: var(--vscode-foreground); background: var(--vscode-sideBar-background); font: 12px var(--vscode-font-family); }
+  header { position: sticky; top: 0; z-index: 2; display: flex; flex-wrap: wrap; align-items: center; gap: 5px; padding: 6px; background: var(--vscode-sideBar-background); border-bottom: 1px solid var(--vscode-panel-border); }
+  button { color: inherit; background: var(--vscode-button-secondaryBackground); border: 0; border-radius: 2px; padding: 4px 7px; cursor: pointer; font: inherit; }
+  button:hover { background: var(--vscode-button-secondaryHoverBackground); }
+  button:disabled { opacity: .5; cursor: default; }
+  #state { padding: 9px 8px 4px; font-weight: 600; }
+  #message, #metrics, #quality { padding: 3px 8px; color: var(--vscode-descriptionForeground); line-height: 1.45; }
+  #quality { color: var(--vscode-editorWarning-foreground); }
+  h3 { margin: 12px 8px 3px; font-size: 12px; }
+  .row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 8px; padding: 4px 8px; border-top: 1px solid var(--vscode-panel-border); }
+  .name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .address, .samples { font-family: var(--vscode-editor-font-family, monospace); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .samples { color: var(--vscode-descriptionForeground); text-align: right; }
+  .empty { padding: 6px 8px; color: var(--vscode-descriptionForeground); }
+</style>
+</head>
+<body>
+<header>
+  <button id="start">开始</button>
+  <button id="stop">停止</button>
+  <button id="export">导出报告</button>
+  <button id="clear">清空</button>
+</header>
+<div id="state">Trace</div>
+<div id="message"></div>
+<div id="metrics"></div>
+<div id="quality"></div>
+<h3>覆盖率</h3>
+<div class="empty">当前是 SWO PC 统计采样；精确源码行和指令覆盖率需要完整解码的 ETM 指令流。未命中的地址不能判为未执行。</div>
+<h3>函数热点（PC 样本）</h3>
+<div id="functions" class="empty">等待 PC 样本</div>
+<h3>指令地址样本（不是覆盖率）</h3>
+<div id="addresses" class="empty">等待 PC 样本</div>
+<script nonce="${nonce}">
+  const vscode = acquireVsCodeApi();
+  const stateEl = document.getElementById('state');
+  const messageEl = document.getElementById('message');
+  const metricsEl = document.getElementById('metrics');
+  const qualityEl = document.getElementById('quality');
+  const functionsEl = document.getElementById('functions');
+  const addressesEl = document.getElementById('addresses');
+  const startButton = document.getElementById('start');
+  const stopButton = document.getElementById('stop');
+  const exportButton = document.getElementById('export');
+  const clearButton = document.getElementById('clear');
+
+  function send(action) { vscode.postMessage({ type: 'action', action }); }
+  function renderRows(container, rows, addressMode, total) {
+    container.replaceChildren();
+    if (!rows || rows.length === 0) {
+      container.className = 'empty';
+      container.textContent = '等待 PC 样本';
+      return;
+    }
+    container.className = '';
+    for (const row of rows) {
+      const line = document.createElement('div');
+      line.className = 'row';
+      const name = document.createElement('span');
+      name.className = 'name';
+      name.textContent = addressMode ? (row.functionName || '未知函数') : row.name;
+      const address = document.createElement('span');
+      address.className = 'address';
+      address.textContent = '0x' + Number(row.address).toString(16).toUpperCase();
+      const count = document.createElement('span');
+      count.className = 'samples';
+      const share = total ? (100 * row.samples / total).toFixed(1) + '%' : '0%';
+      count.textContent = row.samples + ' · ' + share;
+      line.append(name, address, count);
+      container.appendChild(line);
+    }
+  }
+
+  window.addEventListener('message', (event) => {
+    const data = event.data;
+    if (data.type !== 'state') { return; }
+    const labels = { 'no-session': '未启动', unavailable: '未就绪', ready: '已就绪', recording: '正在采集', stopping: '正在收尾', stopped: '已停止' };
+    stateEl.textContent = 'Trace · ' + (labels[data.state] || data.state);
+    messageEl.textContent = data.message || '';
+    const seconds = (data.durationMs / 1000).toFixed(1);
+    const rate = Number(data.averagePcSamplesPerSecond || 0).toFixed(1);
+    metricsEl.textContent = `PC 样本 ${data.totalPcSamples}（已映射 ${data.mappedSamples}，未映射 ${data.unmappedSamples}） · 均速 ${rate}/s · 丢弃 ${data.droppedSamples} · 地址统计省略 ${data.omittedAddressSamples} · sleep ${data.sleepSamples} · gap ${data.gapCount} · ${seconds}s`;
+    qualityEl.textContent = data.quality === 'sampled' ? '当前结果是统计采样：未命中的行或地址不能视为未执行。' : '';
+    startButton.disabled = data.state === 'recording' || data.state === 'stopping' || data.state === 'no-session' || data.state === 'unavailable';
+    stopButton.disabled = data.state !== 'recording';
+    exportButton.disabled = !data.totalPcSamples && !data.gapCount && !data.sleepSamples;
+    clearButton.disabled = data.state === 'recording' || data.state === 'stopping';
+    renderRows(functionsEl, data.functions, false, data.totalPcSamples);
+    renderRows(addressesEl, data.addresses, true, data.totalPcSamples);
+  });
+  startButton.addEventListener('click', () => send('start'));
+  stopButton.addEventListener('click', () => send('stop'));
+  exportButton.addEventListener('click', () => send('export'));
+  clearButton.addEventListener('click', () => send('clear'));
+  vscode.postMessage({ type: 'ready' });
+</script>
+</body>
+</html>

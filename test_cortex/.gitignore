@@ -1,0 +1,61 @@
+####################################
+# CMake / Ninja (generated locally)
+####################################
+/build/
+/cmake-build-*/
+/CMakeFiles/
+/CMakeCache.txt
+/cmake_install.cmake
+/build.ninja
+/.ninja_deps
+/.ninja_log
+/compile_commands.json
+/CMakeUserPresets.json
+
+####################################
+# Keil / MDK
+####################################
+Objects/
+Listings/
+
+*.axf
+*.elf
+*.hex
+*.bin
+*.map
+*.lst
+*.o
+*.obj
+*.a
+*.d
+*.su
+*.htm
+*.crf
+
+*.uvgui.*
+*.dep
+MDK-ARM/*.txt
+MDK-ARM/JLinkLog.txt
+####################################
+# CubeMX
+####################################
+.mxproject
+
+####################################
+# IDE / OS
+####################################
+.vscode/
+.idea/
+
+*.log
+*.tmp
+*.bak
+
+.DS_Store
+Thumbs.db
+
+####################################
+# Optional: User local
+####################################
+*.swp
+*.~*

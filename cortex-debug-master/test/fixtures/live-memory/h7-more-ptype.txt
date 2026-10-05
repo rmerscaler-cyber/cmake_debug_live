@@ -1,0 +1,37 @@
+﻿arm-none-eabi-gdb.exe : warning: could not convert 'pid_feedforward_t' from the host encoding (CP1252) to UTF-32.
+所在位置 行:1 字符: 238
++ ... ptype.txt"; & $gdb --batch -nx -ex "set pagination off" -ex "ptype /o ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (warning: could ...252) to UTF-32.:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+This normally should not happen, please file a bug report.
+type = struct {
+/*      0      |       4 */    fp32 set_gain;
+/*      4      |      16 */    fp32 comp_gain[4];
+/*     20      |      16 */    fp32 comp_value[4];
+/*     36      |       4 */    fp32 output;
+/*     40      |       1 */    uint8_t comp_count;
+/*     41      |       1 */    uint8_t enabled;
+/* XXX  2-byte padding   */
+
+                               /* total size (bytes):   44 */
+                             }
+type = struct {
+/*      0      |       1 */    pid_mode_e mode;
+/* XXX  3-byte hole      */
+/*      4      |       4 */    fp32 kp;
+/*      8      |       4 */    fp32 ki;
+/*     12      |       4 */    fp32 kd;
+/*     16      |       4 */    fp32 max_out;
+/*     20      |       4 */    fp32 max_iout;
+/*     24      |       4 */    fp32 d_filter;
+/*     28      |       4 */    fp32 integral_separation;
+
+                               /* total size (bytes):   32 */
+                             }
+type = enum {PID_LINEAR, PID_ANGLE}
+type = enum {PID_ERROR_NONE, PID_ERROR_BLOCKED}
+type = enum {MOTOR_MODE_SPEED, MOTOR_MODE_POSITION, MOTOR_MODE_RELAY}
+type = enum {MOTOR_BUS_BOARD, MOTOR_BUS_GIMBAL, MOTOR_BUS_DRIVE, MOTOR_BUS_STEER, MOTOR_BUS_GUN}
+type = enum {MOTOR_SPEED_FEEDBACK_ANGULAR, MOTOR_SPEED_FEEDBACK_LINEAR, MOTOR_SPEED_FEEDBACK_ROTOR}

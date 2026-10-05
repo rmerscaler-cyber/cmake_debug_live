@@ -1,0 +1,44 @@
+﻿Exec file: `E:\code_for_rm\cmake_h7_duo\build\Debug\cmake_h7_duo.elf', file type elf32-littlearm.
+ [0]      0x8000000->0x80002cc at 0x00001000: .isr_vector ALLOC LOAD READONLY DATA HAS_CONTENTS
+ [1]      0x80002d0->0x8024624 at 0x000012d0: .text ALLOC LOAD READONLY CODE HAS_CONTENTS
+ [2]      0x8024628->0x8026868 at 0x00025628: .rodata ALLOC LOAD READONLY DATA HAS_CONTENTS
+ [3]      0x8026868->0x8026868 at 0x0002818c: .ARM.extab HAS_CONTENTS
+ [4]      0x8026868->0x8026870 at 0x00027868: .ARM ALLOC LOAD READONLY DATA HAS_CONTENTS
+ [5]      0x8026870->0x8026870 at 0x0002818c: .preinit_array ALLOC LOAD DATA HAS_CONTENTS
+ [6]      0x8026870->0x8026874 at 0x00027870: .init_array ALLOC LOAD READONLY DATA HAS_CONTENTS
+ [7]      0x8026874->0x8026878 at 0x00027874: .fini_array ALLOC LOAD READONLY DATA HAS_CONTENTS
+ [8]      0x20000000->0x2000018c at 0x00028000: .data ALLOC LOAD DATA HAS_CONTENTS
+ [9]      0x2000018c->0x2000018c at 0x0002818c: .tdata ALLOC LOAD DATA HAS_CONTENTS
+ [10]     0x2000018c->0x2000018c at 0x00000000: .tbss ALLOC
+ [11]     0x20000190->0x20008ff0 at 0x00028190: .bss ALLOC
+ [12]     0x24000000->0x24000060 at 0x00029000: .ram_d1 ALLOC
+ [13]     0x20008ff0->0x200095f0 at 0x00028ff0: ._user_heap_stack ALLOC
+ [14]     0x0000->0x002e at 0x0002818c: .ARM.attributes READONLY HAS_CONTENTS
+ [15]     0x0000->0x0045 at 0x000281ba: .comment READONLY HAS_CONTENTS
+ [16]     0x0000->0x513b6 at 0x000281ff: .debug_info READONLY HAS_CONTENTS
+ [17]     0x0000->0xbe6d at 0x000795b5: .debug_abbrev READONLY HAS_CONTENTS
+ [18]     0x0000->0x3b60 at 0x00085428: .debug_aranges READONLY HAS_CONTENTS
+ [19]     0x0000->0x2d63 at 0x00088f88: .debug_rnglists READONLY HAS_CONTENTS
+ [20]     0x0000->0x459ab at 0x0008bceb: .debug_macro READONLY HAS_CONTENTS
+ [21]     0x0000->0x5036c at 0x000d1696: .debug_line READONLY HAS_CONTENTS
+ [22]     0x0000->0x18cda5 at 0x00121a02: .debug_str READONLY HAS_CONTENTS
+ [23]     0x0000->0xfde8 at 0x002ae7a8: .debug_frame READONLY HAS_CONTENTS
+ [24]     0x0000->0x0227 at 0x002be590: .debug_line_str READONLY HAS_CONTENTS
+$1 = 4
+$2 = 0.100000001
+$3 = 16777216
+$4 = 10000000000
+$5 = 1.40129846e-45
+$6 = -nan(0x400000)
+$7 = inf
+$8 = 1e+20
+arm-none-eabi-gdb.exe : warning: could not convert 'bool' from the host encoding (CP1252) to UTF-32.
+所在位置 行:1 字符: 242
++ ... float.txt"; & $gdb --batch -nx -ex "set pagination off" -ex "maintena ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (warning: could ...252) to UTF-32.:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+This normally should not happen, please file a bug report.
+No symbol "bool" in current context.
+$9 = 0

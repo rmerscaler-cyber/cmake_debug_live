@@ -1,0 +1,20 @@
+# Local dependencies and generated build output
+node_modules/
+build/
+cmake-build-*/
+CMakeFiles/
+CMakeCache.txt
+compile_commands.json
+.rm-debug-cmake-cache-*/
+*.vsix
+
+# Local session data
+.agents/
+.codex/
+.aws/
+
+# OS / editor temporary files
+.DS_Store
+Thumbs.db
+*.swp
+*.tmp

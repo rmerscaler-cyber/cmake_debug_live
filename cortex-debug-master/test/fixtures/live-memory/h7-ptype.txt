@@ -1,0 +1,89 @@
+﻿The target endianness is set automatically (currently little endian).
+arm-none-eabi-gdb.exe : warning: could not convert 'motor_handle_t' from the host encoding (CP1252) to UTF-32.
+所在位置 行:1 字符: 335
++ ... ptype.txt"; & $gdb --batch -nx -ex "set pagination off" -ex "show end ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (warning: could ...252) to UTF-32.:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+This normally should not happen, please file a bug report.
+type = motor_base_t *
+type = float
+type = unsigned char
+type = enum {CHASSIS_VECTOR_FOLLOW_GIMBAL_YAW, CHASSIS_VECTOR_NO_FOLLOW_YAW, CHASSIS_VECTOR_RAW, CHASSIS_SPIN}
+type = struct {
+/*      0      |       1 */    motor_id_e id;
+/*      1      |       1 */    motor_type_e type;
+/* XXX  2-byte hole      */
+/*      4      |       4 */    const motor_driver_ops_t *driver;
+/*      8      |       4 */    const motor_reg_t *config;
+/*     12      |      40 */    motor_feedback_t fb;
+/*     52      |     276 */    motor_control_t ctrl;
+/*    328      |       4 */    volatile uint32_t raw_feedback_version;
+/*    332      |       4 */    volatile uint32_t feedback_version;
+/*    336      |       4 */    volatile uint32_t last_feedback_tick;
+/*    340      |       4 */    volatile uint32_t feedback_count;
+/*    344      |       1 */    uint8_t online;
+/*    345      |       1 */    uint8_t enabled;
+/* XXX  2-byte padding   */
+
+                               /* total size (bytes):  348 */
+                             }
+type = struct {
+/*      0      |      18 */    struct {
+/*      0      |       8 */        int16_t ch[4];
+/*      8      |       4 */        int8_t s[4];
+/*     12      |       4 */        int16_t vr[2];
+/*     16      |       1 */        uint8_t failsafe;
+/*     17      |       1 */        uint8_t frame_lost;
+
+                                   /* total size (bytes):   18 */
+                               } rc;
+/*     18      |       8 */    struct {
+/*     18      |       2 */        int16_t x;
+/*     20      |       2 */        int16_t y;
+/*     22      |       2 */        int16_t z;
+/*     24      |       1 */        uint8_t press_l;
+/*     25      |       1 */        uint8_t press_r;
+
+                                   /* total size (bytes):    8 */
+                               } mouse;
+/*     26      |       2 */    struct {
+/*     26      |       2 */        uint16_t v;
+
+                                   /* total size (bytes):    2 */
+                               } key;
+
+                               /* total size (bytes):   28 */
+                             }
+type = struct {
+/*      0      |      48 */    cmd_t command;
+/*     48      |       1 */    chassis_mode_e chassis_mode;
+/*     49      |       1 */    chassis_mode_e last_chassis_mode;
+/* XXX  2-byte hole      */
+/*     52      |      16 */    motor_handle_t wheel_motor[4];
+/*     68      |      16 */    motor_handle_t steer_motor[4];
+/*     84      |       4 */    motor_handle_t yaw_motor;
+/*     88      |      96 */    fp32 power_k[4][6];
+/*    184      |     132 */    pid_type_def chassis_angle_pid;
+/*    316      |      16 */    first_order_filter_type_t chassis_cmd_slow_set_vx;
+/*    332      |      16 */    first_order_filter_type_t chassis_cmd_slow_set_vy;
+/*    348      |       4 */    fp32 vx_set;
+/*    352      |       4 */    fp32 vy_set;
+/*    356      |       4 */    fp32 wz_set;
+/*    360      |       4 */    fp32 vx_max_speed;
+/*    364      |       4 */    fp32 vx_min_speed;
+/*    368      |       4 */    fp32 vy_max_speed;
+/*    372      |       4 */    fp32 vy_min_speed;
+/*    376      |       1 */    uint8_t steer_zero_hold_active;
+/*    377      |       1 */    uint8_t super_capacitor;
+/* XXX  2-byte hole      */
+/*    380      |      24 */    chassis_power_status_t power_status;
+
+                               /* total size (bytes):  404 */
+                             }
+$1 = 28
+$2 = 404
+$3 = 348
+$4 = 1
+No symbol "pid_t" in current context.
