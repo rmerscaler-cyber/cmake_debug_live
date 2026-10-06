@@ -48,6 +48,8 @@ const launch = { configurations: [{ name: 'Keep existing', type: 'cppdbg' }] };
 const updates = [];
 let probe = 'daplink';
 const messages = [];
+const information = [];
+const messageActions = [];
 const debugLaunches = [];
 const folder = { uri: { fsPath: project } };
 const token = { isCancellationRequested: false, onCancellationRequested: () => ({ dispose() {} }) };
@@ -85,7 +87,11 @@ const vscode = {
             ? 'target/stm32f1x.cfg'
             : options.title.includes('芯片型号') ? 'STM32F103C8' : options.value,
         showWarningMessage: (message) => { throw new Error(message); },
-        showErrorMessage: (message) => messages.push(message), showInformationMessage() {},
+        showErrorMessage: async (message, ...actions) => {
+            messages.push(message);
+            messageActions.push(actions);
+        },
+        showInformationMessage: (message) => information.push(message),
         withProgress: async (_options, callback) => callback({}, token)
     },
     debug: { startDebugging: async (_folder, configuration) => {
@@ -204,6 +210,48 @@ const { SerialPlot } = require('../out/src/frontend/views/serial-plot');
         fs.copyFileSync(gdb, separateGdb);
         await workflow.saveGdbSettings(separateGdb);
         assert.strictEqual(debuggerSettings['armToolchainPath.linux'], bin, 'binutils must remain beside GCC, not multiarch GDB');
+
+        // Execute real child processes without touching a probe. Each failure must analyze only its own stdout/stderr.
+        const failureCases = [
+            ['printf "Open On-Chip Debugger 0.11.0\\n"; printf "Error: LIBUSB_ERROR_ACCESS\\nError: open failed\\n" >&2; exit 1', 'USB 探针访问权限不足'],
+            ['printf "Error: unable to find a matching CMSIS-DAP device\\n" >&2; exit 7', '未找到或无法打开 Link 探针'],
+            ['printf "Error: verification failed\\n"; exit 2', 'Flash 写入或校验失败'],
+            ['printf "unclassified error\\n"; exit 3', '现有日志不足以确定失败原因']
+        ];
+        for (const [command, cause] of failureCases) {
+            output.length = 0;
+            messages.length = 0;
+            workspace.flashCommand = command;
+            await workflow.flash();
+            assert.strictEqual(workflow.state, '烧录失败');
+            assert(workflow.failedFlashProjects.has(project));
+            assert(messages[0].includes(cause), messages[0]);
+            assert(output.join('').includes('日志依据：'));
+            assert(output.join('').includes('退出码'));
+            assert.deepStrictEqual(messageActions.at(-1), ['查看分析与日志', '配置工程和工具路径']);
+            if (!command.includes('LIBUSB_ERROR_ACCESS')) {
+                assert(!output.join('').includes('USB 探针访问权限不足'), 'old logs must not leak into a new flash');
+            }
+        }
+        const chunks = [];
+        await workflow.runBash('printf \'\\346\'; /bin/sleep 0.02; printf \'\\265\\213\\350\\257\\225\'', project, token, false, (text) => chunks.push(text));
+        assert.strictEqual(chunks.join(''), '测试', 'UTF-8 split across process chunks must stay readable');
+
+        output.length = 0;
+        messages.length = 0;
+        workspace.flashCommand = 'exit 4';
+        token.isCancellationRequested = true;
+        await workflow.flash();
+        token.isCancellationRequested = false;
+        assert.strictEqual(workflow.state, '烧录已取消');
+        assert.strictEqual(messages.length, 0, 'cancellation should not report hardware failure');
+        assert(!output.join('').includes('本次烧录失败分析'));
+        assert(information.at(-1).includes('固件可能未完整写入'));
+        workspace.flashCommand = 'exit 0';
+        await workflow.flash();
+        assert.strictEqual(workflow.state, '烧录成功');
+        assert(!workflow.failedFlashProjects.has(project), 'a successful retry must clear the flash failure gate');
+        delete workspace.flashCommand;
 
         const plot = new SerialPlot({}, '/dev/ttyACM0', () => {});
         assert.strictEqual(plot.port.options.path, '/dev/ttyACM0');

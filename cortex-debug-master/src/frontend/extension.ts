@@ -31,6 +31,7 @@ import { GDBServerConsole } from './server_console';
 import { CDebugSession, CDebugChainedSessionItem } from './cortex_debug_session';
 import { ServerConsoleLog } from '../backend/server';
 import { RmWorkflow } from './rm-workflow';
+import { RmSearch } from './rm-search';
 
 interface SVDInfo {
     expression: RegExp;
@@ -64,6 +65,7 @@ export class CortexDebugExtension {
 
     constructor(private context: vscode.ExtensionContext) {
         new RmWorkflow(context);
+        new RmSearch(context);
         const config = vscode.workspace.getConfiguration('cortex-debug');
         this.startServerConsole(context, config.get(CortexDebugKeys.SERVER_LOG_FILE_NAME, '')); // Make this the first thing we do to be ready for the session
         this.memoryProvider = new MemoryContentProvider();

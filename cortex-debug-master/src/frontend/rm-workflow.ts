@@ -3,11 +3,13 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import { spawn } from 'child_process';
+import { StringDecoder } from 'string_decoder';
 import { applyEdits, modify, parse } from 'jsonc-parser';
 import { CMakeProjectManager, prepareMixedCMake } from './cmake-project';
 import { DesktopWorkflow } from './desktop-workflow';
 import { MujocoWorkflow } from './mujoco-workflow';
 import { backupRelocatedCMakeCache } from './cmake-cache';
+import { analyzeFlashFailure, FlashLog, formatFlashDiagnosis } from './flash-diagnostics';
 import {
     armToolchainDirectory, bashPath, bashQuote, configuredBash, discoverArmGdb, executableCandidates,
     existingDirectory, existingFile, jlinkCandidates, normalizedToolPath, platformSetting, toolName, uniqueFiles
@@ -117,7 +119,8 @@ class WorkflowTree implements vscode.TreeDataProvider<vscode.TreeItem> {
             ['MuJoCo 无窗口调试', 'rm-debug.mujoco.headless', 'debug-alt'],
             ['编译 Build', 'rm-debug.build', 'tools'],
             ['烧录 Flash', 'rm-debug.flash', 'cloud-upload'],
-            ['调试 Debug', 'rm-debug.debug', 'debug-start']
+            ['调试 Debug', 'rm-debug.debug', 'debug-start'],
+            ['变量搜索（范围 / 定义 / 引用）', 'rm-debug.search', 'search']
         ];
         return items.map(([label, command, icon]) => {
             const item = new vscode.TreeItem(label, vscode.TreeItemCollapsibleState.None);
@@ -705,7 +708,9 @@ export class RmWorkflow implements vscode.Disposable {
         return { ...process.env, PATH: [...this.toolDirectories(), process.env.PATH || ''].join(path.delimiter) };
     }
 
-    private async runBash(command: string, cwd: string, token: vscode.CancellationToken, parseDiagnostics: boolean): Promise<number> {
+    private async runBash(
+        command: string, cwd: string, token: vscode.CancellationToken, parseDiagnostics: boolean, capture?: (text: string) => void
+    ): Promise<number> {
         const bash = configuredBash(vscode.workspace.getConfiguration('rm-debug'));
         if (!bash) { throw new Error('找不到 Bash。请先执行“rm_debug: Configure Workspace”配置 Bash 路径。'); }
         const directories = this.toolDirectories().map((item) => bashQuote(bashPath(item)));
@@ -716,9 +721,10 @@ export class RmWorkflow implements vscode.Disposable {
             this.currentProcess = child;
             let stdout = '';
             let stderr = '';
-            const consume = (chunk: Buffer, stream: 'stdout' | 'stderr') => {
-                const text = chunk.toString('utf8');
+            const decoders = { stdout: new StringDecoder('utf8'), stderr: new StringDecoder('utf8') };
+            const consume = (text: string, stream: 'stdout' | 'stderr') => {
                 this.output.append(text);
+                capture?.(text);
                 const buffer = (stream === 'stdout' ? stdout : stderr) + text;
                 const lines = buffer.split(/\r?\n|\r/);
                 const tail = lines.pop() || '';
@@ -733,8 +739,8 @@ export class RmWorkflow implements vscode.Disposable {
                     }
                 }
             };
-            child.stdout?.on('data', (chunk: Buffer) => consume(chunk, 'stdout'));
-            child.stderr?.on('data', (chunk: Buffer) => consume(chunk, 'stderr'));
+            child.stdout?.on('data', (chunk: Buffer) => consume(decoders.stdout.write(chunk), 'stdout'));
+            child.stderr?.on('data', (chunk: Buffer) => consume(decoders.stderr.write(chunk), 'stderr'));
             const cancellation = token.onCancellationRequested(() => child.kill());
             child.on('error', (error) => {
                 cancellation.dispose();
@@ -744,6 +750,8 @@ export class RmWorkflow implements vscode.Disposable {
             child.on('close', (code) => {
                 cancellation.dispose();
                 this.currentProcess = undefined;
+                consume(decoders.stdout.end(), 'stdout');
+                consume(decoders.stderr.end(), 'stderr');
                 if (parseDiagnostics) {
                     if (stdout) { this.addDiagnostic(stdout, cwd); }
                     if (stderr) { this.addDiagnostic(stderr, cwd); }
@@ -959,13 +967,18 @@ export class RmWorkflow implements vscode.Disposable {
         this.output.show(true);
         this.setState('烧录中');
         const started = Date.now();
+        const flashLog = new FlashLog();
+        let cancelled = false;
+        const tool = override ? '自定义命令' : launch.servertype === 'jlink' ? 'J-Link' : 'OpenOCD';
         try {
             await vscode.window.withProgress({
                 location: vscode.ProgressLocation.Notification, title: 'rm_debug：烧录', cancellable: true
             }, async (_progress, token) => {
-                const exit = await this.runBash(command, project, token, false);
-                if (exit !== 0) { throw new Error(`${launch?.servertype === 'jlink' ? 'J-Link' : 'OpenOCD'} 烧录失败，退出码 ${exit}`); }
-                if (token.isCancellationRequested) { throw new Error('烧录已取消'); }
+                try {
+                    const exit = await this.runBash(command, project, token, false, (text) => flashLog.append(text));
+                    if (token.isCancellationRequested) { throw new Error('烧录已取消'); }
+                    if (exit !== 0) { throw new Error(`${tool} 烧录失败，退出码 ${exit}`); }
+                } finally { cancelled = token.isCancellationRequested; }
             });
             this.failedFlashProjects.delete(project);
             this.setState('烧录成功');
@@ -973,10 +986,21 @@ export class RmWorkflow implements vscode.Disposable {
             vscode.window.showInformationMessage('rm_debug：烧录成功。');
         } catch (error) {
             this.failedFlashProjects.add(project);
-            this.setState('烧录失败');
+            this.setState(cancelled ? '烧录已取消' : '烧录失败');
             this.output.appendLine(`\n${String(error)}，耗时 ${((Date.now() - started) / 1000).toFixed(1)} 秒。`);
             this.output.show(true);
-            vscode.window.showErrorMessage(`rm_debug：${String(error)}`);
+            if (cancelled) {
+                vscode.window.showInformationMessage('rm_debug：烧录已取消，固件可能未完整写入，请重新烧录后再调试。');
+            } else {
+                const diagnoses = analyzeFlashFailure(`${flashLog.text}\n${String(error)}`);
+                this.output.appendLine(formatFlashDiagnosis(diagnoses));
+                void vscode.window.showErrorMessage(
+                    `rm_debug：烧录失败。可能原因：${diagnoses[0].cause}。`, '查看分析与日志', '配置工程和工具路径'
+                ).then((choice) => {
+                    if (choice === '查看分析与日志') { this.output.show(false); }
+                    if (choice === '配置工程和工具路径') { return vscode.commands.executeCommand('rm-debug.configure'); }
+                });
+            }
         } finally {
             this.busy = false;
             if (jlinkCommandFile && existingFile(jlinkCommandFile)) { fs.unlinkSync(jlinkCommandFile); }

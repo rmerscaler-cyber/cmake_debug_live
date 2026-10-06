@@ -2,11 +2,25 @@
 
 `rm_debug` 是队内使用的 VS Code 插件，基于 Cortex-Debug，集成 CMake 编译、探针烧录、源码调试、Live Watch、波形图和 Trace 函数热点分析。扩展名称为 **rm_debug**，标识为 **`rm-local.rm-debug`**；`launch.json` 的调试类型仍是 **`cortex-debug`**。
 
-本文面向第一次搭环境的队员，也适用于已有 STM32 工程的队员。**不要求创建新 Profile**：直接使用现有配置或单独创建 `stm32` Profile 都可以。本文按当前源码版本 **0.1.54** 说明；安装时以队内实际分发的 VSIX、操作系统和架构为准。
+本文面向第一次搭环境的队员，也适用于已有 STM32 工程的队员。**不要求创建新 Profile**：直接使用现有配置或单独创建 `stm32` Profile 都可以。本文按当前源码版本 **0.1.56** 说明；安装时以队内实际分发的 VSIX、操作系统和架构为准。
 
 > **先记住两条限制：**
 > 1. **通过 OpenOCD 烧录必须使用 0.12.0 及以上版本**，并配套使用同一套安装中的 scripts。不要只升级 exe、继续引用旧 scripts，也不要以为系统默认安装的版本一定满足要求。J-Link 的独立烧录流程使用 SEGGER 工具。
 > 2. **包含大量矩阵、大数组的结构体可能让 Live Watch 卡死。** 不要直接对整套算法状态、滤波器或控制器结构体启用“全部字段”，优先监控几个标量和需要的矩阵元素。批量读取与数组分页并不能保证超大对象不卡死，恢复方法见第 7 节。
+
+## 0.1.56 新功能速用
+
+升级后先在使用插件的 VS Code Profile 中执行 **开发人员：重新加载窗口**。已有 `cmake_debug` Profile 可继续使用，无需新建 Profile。
+
+| 要做什么 | 入口与操作 | 结果位置 |
+|---|---|---|
+| 按文件、工程或整个工作区搜索变量 | 光标放在变量名上 → `Ctrl+Alt+Shift+F` → **文本检索** → 选择范围 → 确认变量名 | 原生左侧搜索栏 |
+| 查找变量的实际定义 | 同一入口选择 **查找定义**，再选择 **当前工程** 或 **整个工作区** | rm_debug → 符号结果 |
+| 查找同一个变量的真实引用 | 同一入口选择 **查找真实引用**，再选择范围 | rm_debug → 符号结果；不混入其他同名变量 |
+| 排查跳转没有结果 | 命令面板运行 **rm_debug: 检查 C/C++ 工程索引**，查看配置与编译数据库，必要时点击 **重扫描 C/C++ 工作区** | rm_debug 搜索与索引输出 |
+| 查看烧录失败原因 | 烧录失败通知 → **查看分析与日志** | rm_debug 输出中的可能原因、原始报错与排查建议 |
+
+搜索栏标题区也可直接点击文件图标搜当前文件、文件夹图标搜当前工程；按钮被折叠时打开标题的 `…` 菜单。完整步骤见 [变量搜索与跳转](#variable-search)，烧录提示见 [烧录失败分析](#flash-diagnostics)。
 
 ## 目录
 
@@ -17,7 +31,9 @@
 - [3. 工具路径与首次工程配置](#3-工具路径与首次工程配置)
 - [4. CMakeLists 与 CMake 工程树](#4-cmakelists-与-cmake-工程树)
 - [5. 编译与烧录](#5-编译与烧录)
+- [烧录失败分析](#flash-diagnostics)
 - [6. 基础 Debug 操作](#6-基础-debug-操作)
+- [变量搜索：范围、定义与真实引用](#variable-search)
 - [7. Live Watch：运行中看变量](#7-live-watch运行中看变量)
 - [8. 波形图：Live Plot 与串口上传](#8-波形图live-plot-与串口上传)
 - [9. Trace：找函数热点](#9-trace找函数热点)
@@ -31,7 +47,7 @@
 
 队伍已有统一工具包时优先使用队伍版本，避免不同编译器/标准库造成差异。已经装好的工具不必重复安装，但要核对路径与版本。
 
-**当前 Linux x64 安装包（含 Live Watch 临时调参、矩阵刷新、角度反馈首次采样修复及按需展开）：**`rm-debug-0.1.54-linux-x64.vsix`。同一个包可复制给其他 Linux x64 电脑使用，安装目录可以任意选择。Windows 和 Linux ARM64 分别需要对应平台的安装包；本次构建的目标平台为 `linux-x64`。
+**当前 Linux x64 安装包（含变量搜索范围选择、定义与引用、烧录失败分析、Live Watch 临时调参、矩阵刷新、角度反馈首次采样修复及按需展开）：**`rm-debug-0.1.56-linux-x64.vsix`。同一个包可复制给其他 Linux x64 电脑使用，安装目录可以任意选择。Windows 和 Linux ARM64 分别需要对应平台的安装包；本次构建的目标平台为 `linux-x64`。
 
 **VS Code 至少使用 1.92。** 包中的串口模块要求扩展宿主 Node.js 20 及以上；[VS Code 1.92 自带 Node.js 20.14](https://code.visualstudio.com/updates/v1_92#_electron-30-update)。普通安装用户不需要另外安装 Node.js。GCC、GDB、OpenOCD 等工具仍按本机环境准备，首次使用时运行配置向导。
 
@@ -39,15 +55,15 @@
 
 ```bash
 read -r -p '粘贴队内 VSIX 下载直链：' RM_DEBUG_VSIX_URL
-curl --fail --location --output ./rm-debug-0.1.54-linux-x64.vsix "$RM_DEBUG_VSIX_URL"
-code --install-extension ./rm-debug-0.1.54-linux-x64.vsix --force
+curl --fail --location --output ./rm-debug-0.1.56-linux-x64.vsix "$RM_DEBUG_VSIX_URL"
+code --install-extension ./rm-debug-0.1.56-linux-x64.vsix --force
 ```
 
 本次构建尚未发布固定的公网下载地址，请使用维护者实际提供的直链。若通过队内聊天或文件共享收到 VSIX，直接在文件所在目录执行最后一条安装命令即可。自定义 Profile 需给安装命令加上 `--profile "自己的名称"`；安装后执行 **Developer: Reload Window**。这些命令使用收到的文件名，不依赖维护者的用户名、源码目录或磁盘路径。
 
 ### 1.1 Windows：下载与安装
 
-**插件包：**取得队内分发的 **Windows VSIX**，例如 `rm-debug-0.1.54.vsix`（仅示例，文件名以实际分发为准）。不要下载或安装带 `linux-x64` / `linux-arm64` 的包。
+**插件包：**取得队内分发的 **Windows VSIX**，例如 `rm-debug-0.1.56.vsix`（仅示例，文件名以实际分发为准）。不要下载或安装带 `linux-x64` / `linux-arm64` 的包。
 
 **开发工具按以下顺序准备：**
 
@@ -64,7 +80,7 @@ Windows 工具路径通常指向 `.exe` 文件，OpenOCD scripts 则指向目录
 
 ### 1.2 Ubuntu：下载与安装
 
-**插件包：**Ubuntu x64 使用队内分发的 Linux x64 VSIX，例如 `rm-debug-0.1.54-linux-x64.vsix`。不要安装 Windows 包。ARM64 机器需取得对应 `linux-arm64` 包；目前软件验证基于 Ubuntu 22.04 x64，Ubuntu 24.04 和 Linux ARM64 尚未实测，具体范围见 [Ubuntu 安装与验证说明](./UBUNTU.md)。
+**插件包：**Ubuntu x64 使用队内分发的 Linux x64 VSIX，例如 `rm-debug-0.1.56-linux-x64.vsix`。不要安装 Windows 包。ARM64 机器需取得对应 `linux-arm64` 包；目前软件验证基于 Ubuntu 22.04 x64，Ubuntu 24.04 和 Linux ARM64 尚未实测，具体范围见 [Ubuntu 安装与验证说明](./UBUNTU.md)。
 
 **开发工具按以下顺序准备：**
 
@@ -142,14 +158,14 @@ Profile 是 VS Code 保存扩展和设置的配置集合。建新 Profile 方便
 
 ```powershell
 # 下面的文件名只是示例，换成实际收到的 Windows 安装包。
-code --install-extension ".\rm-debug-0.1.54.vsix" --force
+code --install-extension ".\rm-debug-0.1.56.vsix" --force
 code --list-extensions --show-versions
 ```
 
 Ubuntu 默认 Profile 的队员在 Linux VSIX 所在目录运行：
 
 ```bash
-code --install-extension ./rm-debug-0.1.54-linux-x64.vsix --force
+code --install-extension ./rm-debug-0.1.56-linux-x64.vsix --force
 code --list-extensions --show-versions
 ```
 
@@ -165,7 +181,7 @@ code --list-extensions --show-versions
 命令行可以明确指定 Profile（不存在时 VS Code 会创建它）。在 VSIX 所在目录执行：
 
 ```powershell
-code --profile "stm32" --install-extension ".\rm-debug-0.1.54.vsix" --force
+code --profile "stm32" --install-extension ".\rm-debug-0.1.56.vsix" --force
 code --profile "stm32" --list-extensions --show-versions
 code --profile "stm32" "D:\Team\firmware"
 ```
@@ -173,7 +189,7 @@ code --profile "stm32" "D:\Team\firmware"
 Ubuntu x64 安装包示例：
 
 ```bash
-code --profile "stm32" --install-extension ./rm-debug-0.1.54-linux-x64.vsix --force
+code --profile "stm32" --install-extension ./rm-debug-0.1.56-linux-x64.vsix --force
 code --profile "stm32" --list-extensions --show-versions
 code --profile "stm32" /path/to/firmware
 ```
@@ -183,12 +199,12 @@ code --profile "stm32" /path/to/firmware
 已有 `cmake_debug` Profile 的队员可直接使用它。在收到的 VSIX 所在目录执行：
 
 ```bash
-code --profile "cmake_debug" --install-extension ./rm-debug-0.1.54-linux-x64.vsix --force
+code --profile "cmake_debug" --install-extension ./rm-debug-0.1.56-linux-x64.vsix --force
 code --profile "cmake_debug" --list-extensions --show-versions
 code --profile "cmake_debug" /path/to/firmware
 ```
 
-列表应显示 `rm-local.rm-debug@0.1.54`。在 `cmake_debug` 窗口执行 **Developer: Reload Window**，然后重新启动调试会话，使首次采样修复和默认收起行为生效。Windows 使用对应平台的 VSIX 替换文件名；其他 Profile 替换名称即可。
+列表应显示 `rm-local.rm-debug@0.1.56`。在 **使用 `cmake_debug` Profile 的窗口**按 `Ctrl+Shift+P`，运行 **Developer: Reload Window / 开发人员：重新加载窗口**，再使用新的搜索按钮、范围选择与烧录失败提示。Live Watch 的更新需要重新启动调试会话。Windows 使用对应平台的 VSIX 替换文件名；其他 Profile 替换名称即可。
 
 ### 2.3 配套扩展与升级
 
@@ -392,6 +408,16 @@ C++ 类与实现留在 `.cpp` 中，由 C 接口供 C 主程序调用。使用�
 
 特殊工程可用 `rm-debug.flashCommand` 覆盖烧录命令，支持 `${firmware}` 和 `${workspaceFolder}` 占位符。这会绕过默认烧录流程，要自己保证命令确实写入正确固件并返回可靠的退出码。自定义命令按 Bash 语法执行，Windows 也不是 PowerShell 语法。
 
+<a id="flash-diagnostics"></a>
+
+### 5.3 烧录失败分析
+
+烧录工具返回失败或无法启动时，插件分析**本次** stdout/stderr 和启动错误，在通知中直接显示首要可能原因。点击 **查看分析与日志** 打开 `rm_debug` 输出；末尾列出最多三项可能原因、对应原始报错和排查建议，也可点击 **配置工程和工具路径** 修正工具配置。
+
+支持识别未连接/无法打开 Link 探针、USB 权限或驱动、探针占用、OpenOCD 旧版本或 scripts 不匹配、目标板供电与 SWD 连接、Flash 保护和写入/校验失败。Linux USB 权限提示会指向 udev 规则，Windows 会指向匹配的驱动；这些是基于日志的推测，信息不足时明确显示“现有日志不足以确定失败原因”。不会自动解锁芯片、修改系统权限或发送日志到外部服务。
+
+自定义 `flashCommand` 也会分析其输出。每次烧录独立采集日志，不引用上次失败；分析缓冲最多保留约 128 Ki 字符的开头和末尾，完整输出仍显示在输出栏。手动取消显示“烧录已取消”，提醒固件可能未完整写入，不生成硬件故障判断。
+
 ## 6. 基础 Debug 操作
 
 ### 6.1 第一次启动
@@ -445,6 +471,38 @@ C++ 类与实现留在 `.cpp` 中，由 C 接口供 C 主程序调用。使用�
 ### 6.3 内存、外设与输出
 
 配套视图可查看内存、寄存器、SVD 外设和 RTOS 状态，但要具备正确目标配置与 SVD/RTOS 支持。SWO 可输出 ITM 文本/数据，RTT 需要固件提供 RTT 通道，半主机输出也需要服务器与固件配合。**安装了视图不等于固件已经产生相应数据**。高级调试字段见 [调试配置属性](./debug_attributes.md)；Trace 使用 SWO PC 采样，按第 9 节单独开启。
+
+<a id="variable-search"></a>
+
+### 6.4 变量搜索：Keil 式范围选择、定义与真实引用
+
+**0.1.56 起**，插件集成了范围和检索方式选择，不需要手动填写搜索路径。将光标放到变量/函数名上，按 **`Ctrl+Alt+Shift+F`**，或点击 **rm_debug → 变量搜索（范围 / 定义 / 引用）**；C/C++ 源码右键菜单也提供入口。
+
+1. 选择 **文本检索 / 查找定义 / 查找真实引用**。
+2. 选择 **当前文件 / 当前工程 / 整个工作区**。
+3. 文本检索可确认或修改变量名；定义和真实引用直接使用开始操作时光标处的符号。
+
+例如，在 `main.c` 的 `motor_speed` 上启动搜索：想找工程内所有同名位置，选择 **文本检索 → 当前工程**；想确认这个变量在哪里定义，选择 **查找定义 → 当前工程**；想排除其他函数中同名局部变量的干扰，选择 **查找真实引用 → 当前工程**。若相关源码位于另一个工作区根目录，将范围改为 **整个工作区**。
+
+**找不到入口或结果不全时：**先确认扩展版本为 `rm-local.rm-debug@0.1.56` 并重载当前 Profile 的窗口；标题按钮被隐藏时使用 `Ctrl+Alt+Shift+F` 或命令面板 **rm_debug: 变量搜索：选择范围与检索方式**。文本检索不全时核对选中的范围；定义/真实引用不全时使用 **检查 C/C++ 工程索引**，修复编译数据库后再重扫描。文本检索不需要启动调试，也不需要连接 Link 探针。
+
+| 范围 | 实际检索范围 |
+|---|---|
+| 当前文件 | 当前打开的已保存文件，包含编辑器中尚未保存的修改 |
+| 当前工程 | 当前文件所在工作区的 `rm-debug.projectDirectory`，MuJoCo 使用 `mujoco.sourceDirectory`；未指定时寻找源码所在的最近 CMake 工程，再回退到工作区根目录 |
+| 整个工作区 | 全部工作区根目录，包含未打开的文件；支持多根工作区 |
+
+原生左侧 **搜索** 栏标题区新增三个按钮：**变量搜索**、**当前文件**（文件图标）、**当前工程**（文件夹图标）。宽度不足时在标题的 `…` 中查找。查找定义、真实引用与检查索引也在该标题菜单中；“整个工作区”可通过范围选择或命令面板直接进入。
+
+**文本检索**的结果仍显示在原生左侧搜索栏，单击结果跳转源码。每次显式设置所选范围，清除“仅打开文件”和先前的包含过滤，关闭搜索栏中该次查询的排除设置/忽略文件限制，从而搜索 `.gitignore` 中的源码；仅排除 `.git` 和 `node_modules` 目录。默认全字匹配、区分大小写、非正则，可在原生搜索栏继续调整；之后手动继续检索会沿用这些搜索栏状态，需要时重新开启排除设置。若原先使用 Search Editor，插件会将当前工作区 `search.mode` 改为 `view`，以按要求在左侧显示结果。
+
+**定义 / 真实引用**调用 Microsoft C/C++ 或 clangd 的语言服务，结果按文件显示在 **rm_debug → 符号结果**，列出行号、列号和源码片段，单击即可精确跳转。结果使用光标处同一个符号的实际位置，不把其他同名变量的文本匹配当成真实引用。视图显示所选范围内的结果数和语言服务返回的总数；当前文件没有定义但工程内有定义时，切换到当前工程或整个工作区。
+
+语言服务没有返回结果时，插件提示可能尚未完成索引，可选择 **检查代码索引** 或 **检索同名文本**。索引检查显示当前工程、语言服务状态、C/C++ 配置和编译数据库读取情况，并提供 **重扫描 C/C++ 工作区**。跨文件 Ctrl+单击/F12 仍由语言服务提供；请确保打开了正确工程根目录、源码参与编译、`compile_commands.json` 对应当前源码和工具链，并等待索引完成。扩大文本搜索范围不会自行补齐缺失的符号索引。
+
+VS Code 公开扩展接口支持标题区命令，不能直接在原生搜索输入框内部嵌入自定义下拉框；本功能使用标题按钮和插件的范围选择，不修改 VS Code 安装文件。原有 `Ctrl+F`、`Ctrl+Shift+F`、Ctrl+单击/F12 和引用快捷键仍可使用。如果 `editor.multiCursorModifier` 设置为 `ctrlCmd`，Ctrl+单击会添加光标，恢复默认 `alt` 后即可使用 Ctrl+单击跳定义。
+
+官方说明：[文件搜索与范围设置](https://code.visualstudio.com/docs/editing/codebasics#_search-across-files)、[代码导航](https://code.visualstudio.com/docs/editing/editingevolved)。
 
 ## 7. Live Watch：运行中看变量
 
@@ -725,13 +783,22 @@ node test/live-memory-engine.test.js
 node test/live-matrix.test.js
 npm run lint
 npm run package:ubuntu
-code --profile "cmake_debug" --install-extension ./rm-debug-0.1.54-linux-x64.vsix --force
+code --profile "cmake_debug" --install-extension ./rm-debug-0.1.56-linux-x64.vsix --force
 code --profile "cmake_debug" --list-extensions --show-versions
 ```
 
-当前版本来自 `package.json`；Linux x64 产物为 `rm-debug-0.1.54-linux-x64.vsix`，可直接分发给同平台队员。`package:ubuntu` 会运行发布前构建、生成网页资源并准备原生 USB/串口模块，不需要手动复制 `dist`。Linux ARM64 替换安装文件名后缀；Windows 在 Windows 上使用 `npm run package` 构建自己的包。安装完成后重载对应 Profile 的窗口并重新启动调试。
+当前版本来自 `package.json`；Linux x64 产物为 `rm-debug-0.1.56-linux-x64.vsix`，可直接分发给同平台队员。`package:ubuntu` 会运行发布前构建、生成网页资源并准备原生 USB/串口模块，不需要手动复制 `dist`。Linux ARM64 替换安装文件名后缀；Windows 在 Windows 上使用 `npm run package` 构建自己的包。安装完成后重载对应 Profile 的窗口并重新启动调试。
 
 Linux 包使用 `npm run package:ubuntu`，工具环境与原生 USB/串口模块要求见 [Ubuntu 文档](./UBUNTU.md)。源码调试可在该目录按 `F5` 启动 Extension Development Host。软件编译/测试通过与生成 VSIX 不代表真实板卡的烧录、运行中采样、SWO/串口功能均已验收，发包前仍需用队伍实际硬件验证。
+
+搜索功能验证命令：
+
+```bash
+npm run test:search
+npm run test:search:host
+```
+
+第一条验证范围、过滤条件、符号位置、取消与旧结果隔离；第二条在独立 VS Code 测试窗口中验证真实 C/C++ 跨文件定义、真实引用和原生搜索栏范围。真实宿主检查默认使用本机 `/usr/share/code/code`、Microsoft C/C++ 和 `/usr/bin/g++`，使用临时工作区，不修改日常工程；其他路径可通过 `RM_SEARCH_VSCODE`、`RM_SEARCH_EXTENSIONS` 指定。当前已验证 Linux x64，不能据此宣称 Windows 或真实板卡烧录也已实测。
 
 本插件保留上游 MIT 许可证与相关声明，见 [LICENSE](./LICENSE)。
 

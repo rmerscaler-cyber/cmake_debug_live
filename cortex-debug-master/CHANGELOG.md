@@ -1,5 +1,19 @@
 # ChangeLog
 
+## rm_debug 0.1.56
+
+- Add Keil-style choices for current file, current project and the entire multi-root workspace, with text search, actual definitions and semantic references.
+- Add scope buttons to the native Search title bar, C/C++ editor context actions and Ctrl+Alt+Shift+F. Native text searches reset sticky filters and include ignored source folders.
+- Show language-service definitions and references in a grouped sidebar tree with exact source ranges, cancellation, stale-response protection and an index inspection/rescan entry point.
+- Verify native search scopes, cross-file definitions and exclusion of unrelated same-name local variables in a real VS Code host using Microsoft C/C++.
+
+## rm_debug 0.1.55
+
+- Analyze each failed flash invocation and show likely causes with log evidence and concrete checks for probe connection, USB permissions/drivers, probe contention, tool/script compatibility, target power/SWD, Flash protection and verification.
+- Keep analysis local and bounded, preserve UTF-8 across process chunks, distinguish cancellation from failure, and provide notification actions to view the log or configure tools.
+- Document VS Code's built-in current-file/workspace searches in the Search sidebar, result navigation and Ctrl+click definitions.
+- Add flash-log fixtures and real child-process regression checks for failure isolation, cancellation and successful retries.
+
 ## rm_debug 0.1.54
 
 - Fix motor feedback staying at "waiting for first sample" in legacy mode: retain sampled values during layout rebuilding and publish unchanged leaves and pointer addresses as the initial sample.

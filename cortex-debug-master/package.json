@@ -1,5 +1,5 @@
 {
-    "version": "0.1.54",
+    "version": "0.1.56",
     "preview": false,
     "activationEvents": [
         "onDebugResolve:cortex-debug",
@@ -45,7 +45,15 @@
         "onCommand:rm-debug.trace.start",
         "onCommand:rm-debug.trace.stop",
         "onCommand:rm-debug.trace.export",
-        "onCommand:rm-debug.trace.clear"
+        "onCommand:rm-debug.trace.clear",
+        "onCommand:rm-debug.search",
+        "onCommand:rm-debug.search.currentFile",
+        "onCommand:rm-debug.search.project",
+        "onCommand:rm-debug.search.workspace",
+        "onCommand:rm-debug.search.definition",
+        "onCommand:rm-debug.search.references",
+        "onCommand:rm-debug.search.inspectIndex",
+        "onCommand:rm-debug.search.clearResults"
     ],
     "categories": [
         "Debuggers"
@@ -124,21 +132,36 @@
                     },
                     "rm-debug.desktop.backend": {
                         "type": "string",
-                        "enum": ["gdb", "msvc", "lldb"],
+                        "enum": [
+                            "gdb",
+                            "msvc",
+                            "lldb"
+                        ],
                         "default": "gdb",
                         "scope": "resource",
                         "description": "Debugger used by the generated desktop workflow."
                     },
                     "rm-debug.desktop.cStandard": {
                         "type": "string",
-                        "enum": ["c99", "c11", "c17", "c23"],
+                        "enum": [
+                            "c99",
+                            "c11",
+                            "c17",
+                            "c23"
+                        ],
                         "default": "c11",
                         "scope": "resource",
                         "description": "C standard for desktop single-file builds. CMake projects use their own target standards."
                     },
                     "rm-debug.desktop.cppStandard": {
                         "type": "string",
-                        "enum": ["c++11", "c++14", "c++17", "c++20", "c++23"],
+                        "enum": [
+                            "c++11",
+                            "c++14",
+                            "c++17",
+                            "c++20",
+                            "c++23"
+                        ],
                         "default": "c++20",
                         "scope": "resource",
                         "description": "C++ standard for desktop single-file builds (default: C++20). CMake preparation sets C++20 with the standard required."
@@ -1032,6 +1055,54 @@
                 "command": "cortex-debug.liveWatch.addExpr",
                 "title": "Add expression to Live Watch window",
                 "icon": "$(plus)"
+            },
+            {
+                "command": "rm-debug.search",
+                "title": "变量搜索：选择范围与检索方式",
+                "category": "rm_debug",
+                "icon": "$(search)"
+            },
+            {
+                "command": "rm-debug.search.currentFile",
+                "title": "变量文本检索：当前文件",
+                "category": "rm_debug",
+                "icon": "$(file)"
+            },
+            {
+                "command": "rm-debug.search.project",
+                "title": "变量文本检索：当前工程",
+                "category": "rm_debug",
+                "icon": "$(folder)"
+            },
+            {
+                "command": "rm-debug.search.workspace",
+                "title": "变量文本检索：整个工作区",
+                "category": "rm_debug",
+                "icon": "$(files)"
+            },
+            {
+                "command": "rm-debug.search.definition",
+                "title": "查找变量定义（选择范围）",
+                "category": "rm_debug",
+                "icon": "$(go-to-file)"
+            },
+            {
+                "command": "rm-debug.search.references",
+                "title": "查找真实引用（选择范围）",
+                "category": "rm_debug",
+                "icon": "$(references)"
+            },
+            {
+                "command": "rm-debug.search.inspectIndex",
+                "title": "检查 C/C++ 工程索引",
+                "category": "rm_debug",
+                "icon": "$(inspect)"
+            },
+            {
+                "command": "rm-debug.search.clearResults",
+                "title": "清空符号结果",
+                "category": "rm_debug",
+                "icon": "$(clear-all)"
             }
         ],
         "keybindings": [
@@ -1039,6 +1110,12 @@
                 "command": "cortex-debug.toggleVariableHexFormat",
                 "key": "ctrl+shift+x",
                 "when": "debugType == cortex-debug"
+            },
+            {
+                "command": "rm-debug.search",
+                "key": "ctrl+alt+shift+f",
+                "mac": "cmd+alt+shift+f",
+                "when": "editorTextFocus || focusedView == workbench.view.search || focusedView == rm-debug.searchResults"
             }
         ],
         "languages": [
@@ -3791,6 +3868,46 @@
                     "command": "cortex-debug.varHexModeTurnOff",
                     "when": "view == workbench.debug.watchExpressionsView && inDebugMode && debugType == 'cortex-debug' && debugState == stopped && !cortex-debug:variableUseNaturalFormat",
                     "group": "navigation"
+                },
+                {
+                    "command": "rm-debug.search",
+                    "when": "view == workbench.view.search",
+                    "group": "navigation@0.1"
+                },
+                {
+                    "command": "rm-debug.search.currentFile",
+                    "when": "view == workbench.view.search",
+                    "group": "navigation@0.2"
+                },
+                {
+                    "command": "rm-debug.search.project",
+                    "when": "view == workbench.view.search",
+                    "group": "navigation@0.3"
+                },
+                {
+                    "command": "rm-debug.search.definition",
+                    "when": "view == workbench.view.search || view == rm-debug.searchResults",
+                    "group": "rm_debug_search@4"
+                },
+                {
+                    "command": "rm-debug.search.references",
+                    "when": "view == workbench.view.search || view == rm-debug.searchResults",
+                    "group": "rm_debug_search@5"
+                },
+                {
+                    "command": "rm-debug.search.inspectIndex",
+                    "when": "view == workbench.view.search || view == rm-debug.searchResults",
+                    "group": "rm_debug_search@6"
+                },
+                {
+                    "command": "rm-debug.search",
+                    "when": "view == rm-debug.searchResults",
+                    "group": "navigation@1"
+                },
+                {
+                    "command": "rm-debug.search.clearResults",
+                    "when": "view == rm-debug.searchResults",
+                    "group": "navigation@2"
                 }
             ],
             "debug/variables/context": [
@@ -3808,6 +3925,38 @@
                     "command": "cortex-debug.liveWatch.addToLiveWatch",
                     "when": "inDebugMode && (debugType == 'cortex-debug' || rm-debug.nativeLiveWatchActive) && debugState == stopped",
                     "group": "navigation@2"
+                }
+            ],
+            "editor/context": [
+                {
+                    "command": "rm-debug.search",
+                    "when": "editorLangId == c || editorLangId == cpp",
+                    "group": "rm_debug_search@1"
+                },
+                {
+                    "command": "rm-debug.search.currentFile",
+                    "when": "editorLangId == c || editorLangId == cpp",
+                    "group": "rm_debug_search@2"
+                },
+                {
+                    "command": "rm-debug.search.project",
+                    "when": "editorLangId == c || editorLangId == cpp",
+                    "group": "rm_debug_search@3"
+                },
+                {
+                    "command": "rm-debug.search.workspace",
+                    "when": "editorLangId == c || editorLangId == cpp",
+                    "group": "rm_debug_search@4"
+                },
+                {
+                    "command": "rm-debug.search.definition",
+                    "when": "editorLangId == c || editorLangId == cpp",
+                    "group": "rm_debug_search@5"
+                },
+                {
+                    "command": "rm-debug.search.references",
+                    "when": "editorLangId == c || editorLangId == cpp",
+                    "group": "rm_debug_search@6"
                 }
             ]
         },
@@ -3829,6 +3978,11 @@
                 {
                     "id": "rm-debug.cmakeProject",
                     "name": "CMake 工程"
+                },
+                {
+                    "id": "rm-debug.searchResults",
+                    "name": "符号结果 · 定义与引用",
+                    "when": "rm-debug.search.hasResults"
                 }
             ],
             "debug": [
@@ -3924,8 +4078,11 @@
         "test-compile": "tsc -p ./",
         "package": "vsce package",
         "package:ubuntu": "node scripts/package-ubuntu.js",
-        "test:ubuntu": "npm run test-compile && node test/ubuntu-workflow.test.js && node test/cmake-cache.test.js",
+        "test:ubuntu": "npm run test-compile && node test/flash-diagnostics.test.js && node test/search-workflow.test.js && node test/ubuntu-workflow.test.js && node test/cmake-cache.test.js",
+        "test:flash": "npm run test-compile && node test/flash-diagnostics.test.js",
         "test:mujoco": "npm run test-compile && node test/mujoco-workflow.test.js",
-        "lint": "eslint ."
+        "lint": "eslint .",
+        "test:search": "npm run test-compile && node test/search-workflow.test.js",
+        "test:search:host": "npm run test-compile && node scripts/test-search-host.js"
     }
 }
